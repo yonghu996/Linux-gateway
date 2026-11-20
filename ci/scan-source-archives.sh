@@ -3,6 +3,7 @@
 set -Eeuo pipefail
 IMAGE="${GITLEAKS_IMAGE:-ghcr.io/gitleaks/gitleaks:v8.30.1}"
 ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
