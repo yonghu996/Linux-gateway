@@ -13,13 +13,21 @@ if ($Origin -ne $Repo -and $Origin -ne 'git@github.com:yonghu996/Linux-gateway.g
 $Branch = (git branch --show-current).Trim()
 if ($Branch -ne 'main') { Stop-Publish "当前分支为 $Branch；只允许从 main 分支发布。" }
 
-# 先暂存所有新增、修改和删除，再扫描工作区与全部 Git refs 的提交历史。
+# 发布前确保本地仓库不是浅克隆，否则 --all 仍可能缺失早期历史。
+$IsShallow = (git rev-parse --is-shallow-repository).Trim()
+if ($LASTEXITCODE -ne 0) { Stop-Publish '无法判断 Git 历史是否完整。' }
+if ($IsShallow -eq 'true') {
+    git fetch --unshallow --tags origin
+    if ($LASTEXITCODE -ne 0) { Stop-Publish '补全 Git 历史失败，拒绝发布。' }
+}
+git fetch --tags origin
+if ($LASTEXITCODE -ne 0) { Stop-Publish '获取远端标签失败，拒绝发布。' }
+
+# 先暂存所有新增、修改和删除，再扫描工作区与完整 Git 历史。
 git add -A
 if ($LASTEXITCODE -ne 0) { Stop-Publish 'git add 失败。' }
 git diff --cached --check
 if ($LASTEXITCODE -ne 0) { Stop-Publish '暂存区存在空白或补丁格式错误。' }
-
-# 扫描当前工作区（包含未跟踪文件）和所有分支/标签的完整提交历史。
 gitleaks dir --redact .
 if ($LASTEXITCODE -ne 0) { Stop-Publish 'Gitleaks 工作区扫描未通过，已停止发布。' }
 gitleaks git --redact --log-opts="--all" .
@@ -31,4 +39,4 @@ if (-not (git diff --cached --quiet)) {
 }
 git push -u origin main
 if ($LASTEXITCODE -ne 0) { Stop-Publish '推送失败。' }
-Write-Host '发布成功：工作区扫描、全历史扫描、暂存区检查和 Git 推送均已完成。' -ForegroundColor Green
+Write-Host '发布成功：完整历史检查、工作区扫描、暂存区检查和 Git 推送均已完成。' -ForegroundColor Green
