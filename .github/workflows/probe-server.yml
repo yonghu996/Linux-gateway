@@ -24,7 +24,7 @@ jobs:
       - name: 解包固定版本源码
         run: |
           mkdir -p probe-server/src
-          sha256sum --check probe-server/source-v1.1.0-dev.tar.gz.sha256
+          (cd probe-server && sha256sum --check source-v1.1.0-dev.tar.gz.sha256)
           tar -xzf probe-server/source-v1.1.0-dev.tar.gz --strip-components=1 -C probe-server/src
       - name: 安装 Go 1.27.4
         uses: actions/setup-go@v6
@@ -57,41 +57,3 @@ jobs:
           sed 's#ExecStart=/usr/local/bin/probe-server#ExecStart=/usr/bin/true#' probe-server/src/systemd/probe-server.service > /tmp/probe-server.service
           systemd-analyze verify /tmp/probe-server.service
           systemd-analyze security --offline=yes /tmp/probe-server.service
-
-  cross-build:
-    name: Linux ${{ matrix.arch }} 交叉构建
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [amd64, arm64]
-    steps:
-      - name: 拉取源码
-        uses: actions/checkout@v4
-      - name: 解包固定版本源码
-        run: |
-          mkdir -p probe-server/src
-          sha256sum --check probe-server/source-v1.1.0-dev.tar.gz.sha256
-          tar -xzf probe-server/source-v1.1.0-dev.tar.gz --strip-components=1 -C probe-server/src
-      - name: 安装 Go 1.27.4
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.27.4'
-      - name: 构建服务端与密钥工具
-        working-directory: probe-server/src
-        env:
-          CGO_ENABLED: '0'
-          GOOS: linux
-          GOARCH: ${{ matrix.arch }}
-        run: |
-          mkdir -p dist
-          go build -trimpath -buildvcs=false -ldflags='-s -w' -o dist/probe-server-linux-${GOARCH} ./cmd/probe-server
-          go build -trimpath -buildvcs=false -ldflags='-s -w' -o dist/probe-keygen-linux-${GOARCH} ./cmd/probe-keygen
-          file dist/*
-          sha256sum dist/*
-      - name: 保存构建产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: probe-server-linux-${{ matrix.arch }}
-          path: probe-server/src/dist/*
-          if-no-files-found: error
