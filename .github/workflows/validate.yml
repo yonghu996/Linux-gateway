@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   system_matrix:
@@ -55,7 +54,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: 扫描工作区和全部可达提交历史
-        uses: gitleaks/gitleaks-action@v3
+      - name: 使用固定版本 Gitleaks 扫描工作区和全部历史
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: v8.30.1
+        run: |
+          set -Eeuo pipefail
+          docker pull "ghcr.io/gitleaks/gitleaks:${GITLEAKS_VERSION}"
+          docker run --rm \
+            -v "$PWD:/repo" \
+            -w /repo \
+            "ghcr.io/gitleaks/gitleaks:${GITLEAKS_VERSION}" \
+            dir --redact --exit-code=2 /repo
+          docker run --rm \
+            -v "$PWD:/repo" \
+            -w /repo \
+            "ghcr.io/gitleaks/gitleaks:${GITLEAKS_VERSION}" \
+            git --redact --exit-code=2 --log-opts="--all" /repo
