@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  系统矩阵测试:
-    name: ${{ matrix.container }} / Bash
+  system_matrix:
+    name: ${{ matrix.container }} / Bash 兼容性测试
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -25,7 +25,7 @@ jobs:
       - name: 执行 Shell 与系统识别测试
         run: bash ci/validate.sh
 
-  ShellCheck静态检查:
+  shellcheck:
     name: ShellCheck 静态分析
     runs-on: ubuntu-latest
     steps:
