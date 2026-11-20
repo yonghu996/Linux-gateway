@@ -1,13 +1,30 @@
 #!/usr/bin/env bash
-PROJECT_NAME=linux-gateway
+# 通用日志、权限、锁和交互函数。
+# shellcheck disable=SC2034
+
 PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
-STATE_DIR=/var/lib/linux-gateway
-LOG_DIR=/var/log/linux-gateway
-LOCK_FILE=/run/lock/linux-gateway-installer.lock
-project_version() { cat "$PROJECT_ROOT/VERSION" 2>/dev/null || echo 0.1.0-dev; }
-log_info() { printf '[INFO] %s\n' "$*"; }
-log_warn() { printf '[WARN] %s\n' "$*" >&2; }
-log_error() { printf '[ERROR] %s\n' "$*" >&2; }
-require_root() { [[ $EUID -eq 0 ]] || { log_error '请使用 root 运行'; exit 1; }; }
-confirm() { local a; read -r -p "${1:-继续?} [y/N]: " a || true; [[ "$a" =~ ^([Yy]|[Yy][Ee][Ss])$ ]]; }
-acquire_lock() { command -v flock >/dev/null || { log_error '缺少 flock'; exit 1; }; mkdir -p /run/lock; exec 9>"$LOCK_FILE"; flock -n 9 || { log_error '另一个操作正在运行'; exit 1; }; }
+STATE_DIR="/var/lib/linux-gateway"
+LOG_DIR="/var/log/linux-gateway"
+LOCK_FILE="/run/lock/linux-gateway-installer.lock"
+
+日志信息() { printf '[信息] %s\n' "$*"; }
+日志警告() { printf '[警告] %s\n' "$*" >&2; }
+日志错误() { printf '[错误] %s\n' "$*" >&2; }
+需要_root() {
+  if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+    日志错误 '请使用 root 或 sudo 运行。'
+    return 1
+  fi
+}
+确认操作() {
+  local ANSWER
+  read -r -p "${1:-确认继续？} [y/N]: " ANSWER || true
+  [[ "$ANSWER" =~ ^([Yy]|[Yy][Ee][Ss])$ ]]
+}
+获取版本() { cat "$PROJECT_ROOT/VERSION" 2>/dev/null || printf '开发版\n'; }
+获取锁() {
+  command -v flock >/dev/null 2>&1 || { 日志错误 '缺少 flock（通常由 util-linux 提供）。'; return 1; }
+  mkdir -p /run/lock
+  exec 9>"$LOCK_FILE"
+  flock -n 9 || { 日志错误 '另一个 Linux-gateway 操作正在运行。'; return 1; }
+}

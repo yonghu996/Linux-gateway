@@ -1,0 +1,20 @@
+[Unit]
+Description=Linux Gateway 探测客户端
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=linux-gateway
+Group=linux-gateway
+ExecStart=/usr/local/lib/linux-gateway/probe-client --config /etc/linux-gateway/probe.json
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/linux-gateway /var/log/linux-gateway
+
+[Install]
+WantedBy=multi-user.target

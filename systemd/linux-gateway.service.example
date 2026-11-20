@@ -1,0 +1,20 @@
+[Unit]
+Description=Linux 多出口网关核心服务
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=linux-gateway
+Group=linux-gateway
+ExecStart=/usr/local/lib/linux-gateway/gatewayd --config /etc/linux-gateway/gateway.json
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/linux-gateway /var/log/linux-gateway
+
+[Install]
+WantedBy=multi-user.target

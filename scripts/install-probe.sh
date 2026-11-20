@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-echo 'Probe Client 尚未发布。本步骤不会修改系统。'
+printf 'Probe Client 尚未发布。正式版本将由本仓库统一构建、校验和安装。\n'
+exit 2

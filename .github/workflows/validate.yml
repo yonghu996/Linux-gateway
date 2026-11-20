@@ -1,0 +1,33 @@
+name: Shell 与系统兼容性检查
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: ${{ matrix.container }} / Shell
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          - debian:11
+          - debian:12
+          - ubuntu:20.04
+          - ubuntu:22.04
+    container:
+      image: ${{ matrix.container }}
+    steps:
+      - name: 安装最小测试依赖
+        run: |
+          if command -v apt-get >/dev/null 2>&1; then
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y --no-install-recommends bash coreutils findutils util-linux shellcheck git ca-certificates
+          fi
+      - name: 拉取源码
+        uses: actions/checkout@v4
+      - name: 执行验证
+        run: bash ci/validate.sh
