@@ -70,3 +70,4 @@ jobs:
             -w /repo \
             "ghcr.io/gitleaks/gitleaks:${GITLEAKS_VERSION}" \
             git --redact --exit-code=2 --log-opts="--all" /repo
+          bash ci/scan-source-archives.sh
