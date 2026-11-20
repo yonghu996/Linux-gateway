@@ -4,6 +4,12 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+  security-events: write
 
 jobs:
   system_matrix:
@@ -20,10 +26,8 @@ jobs:
     container:
       image: ${{ matrix.container }}
     steps:
-      - name: 拉取完整源码历史
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: 拉取源码
+        uses: actions/checkout@v6
       - name: 执行 Shell 与系统识别测试
         run: bash ci/validate.sh
 
@@ -31,10 +35,8 @@ jobs:
     name: ShellCheck 静态分析
     runs-on: ubuntu-latest
     steps:
-      - name: 拉取完整源码历史
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: 拉取源码
+        uses: actions/checkout@v6
       - name: 安装 ShellCheck
         run: |
           sudo apt-get update
@@ -46,15 +48,28 @@ jobs:
           done
 
   secret_history_scan:
-    name: Gitleaks 完整历史凭据扫描
+    name: Gitleaks 工作区与完整 Git 历史扫描
     runs-on: ubuntu-latest
     steps:
       - name: 拉取全部分支与标签历史
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
-        # 完整克隆使 Gitleaks 能扫描仓库所有可达提交历史。
-      - name: 扫描工作区和 Git 历史
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 安装并校验 Gitleaks
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION='8.30.1'
+          FILE="gitleaks_${VERSION}_linux_x64.tar.gz"
+          BASE="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}"
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          curl --fail --location --silent --show-error "$BASE/$FILE" -o "$RUNNER_TEMP/$FILE"
+          curl --fail --location --silent --show-error "$BASE/gitleaks_${VERSION}_checksums.txt" -o "$RUNNER_TEMP/checksums.txt"
+          grep -F "  $FILE" "$RUNNER_TEMP/checksums.txt" | (cd "$RUNNER_TEMP" && sha256sum --check --status)
+          tar -xzf "$RUNNER_TEMP/$FILE" -C "$RUNNER_TEMP/gitleaks"
+          test -x "$RUNNER_TEMP/gitleaks/gitleaks"
+          "$RUNNER_TEMP/gitleaks/gitleaks" version
+      - name: 扫描当前工作区文件
+        run: "$RUNNER_TEMP/gitleaks/gitleaks" dir --redact --exit-code=2 .
+      - name: 扫描全部可达分支与标签的 Git 历史
+        run: "$RUNNER_TEMP/gitleaks/gitleaks" git --redact --exit-code=2 --log-opts="--all" .
