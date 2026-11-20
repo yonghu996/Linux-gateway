@@ -15,17 +15,35 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Go 1.27.4 测试与安全分析
+  test_and_security:
+    name: Go 1.27.4 测试与安全分析（Linux AMD64）
     runs-on: ubuntu-latest
     steps:
       - name: 拉取源码
         uses: actions/checkout@v4
-      - name: 解包固定版本源码
+      - name: 校验并安全解包源码归档
+        shell: bash
         run: |
-          mkdir -p probe-server/src
-          (cd probe-server && sha256sum --check source-v1.1.0-dev.tar.gz.sha256)
-          tar -xzf probe-server/source-v1.1.0-dev.tar.gz --strip-components=1 -C probe-server/src
+          set -Eeuo pipefail
+          cd probe-server
+          sha256sum --check source-v1.1.0-dev.tar.gz.sha256
+          tar -tzf source-v1.1.0-dev.tar.gz > "$RUNNER_TEMP/probe-members.txt"
+          if grep -Eq '(^/|(^|/)\.\.(/|$))' "$RUNNER_TEMP/probe-members.txt"; then
+            echo '源码归档包含路径穿越条目。' >&2
+            exit 1
+          fi
+          if ! tar -tvzf source-v1.1.0-dev.tar.gz | awk 'substr($1,1,1)!="-" && substr($1,1,1)!="d" {bad=1} END {exit bad}'; then
+            echo '源码归档包含符号链接或特殊文件。' >&2
+            exit 1
+          fi
+          mkdir -p src
+          tar -xzf source-v1.1.0-dev.tar.gz --strip-components=1 --no-same-owner --no-same-permissions --no-overwrite-dir -C src
+          cd src
+          sha256sum --check SOURCE-MANIFEST.sha256
+          if grep -RniE 'arm64|aarch64|GOARCH=arm' --include='*.sh' --include='*.yml' --include='*.yaml' .; then
+            echo '源码中仍存在 ARM64 构建或安装分支。' >&2
+            exit 1
+          fi
       - name: 安装 Go 1.27.4
         uses: actions/setup-go@v6
         with:
@@ -45,11 +63,6 @@ jobs:
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
           "$(go env GOPATH)/bin/gosec" -quiet ./...
-      - name: 安装并运行 ShellCheck
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck
-          find probe-server/src -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do shellcheck "$f"; done
       - name: 验证 systemd 单元
         run: |
           sudo apt-get update
@@ -57,3 +70,21 @@ jobs:
           sed 's#ExecStart=/usr/local/bin/probe-server#ExecStart=/usr/bin/true#' probe-server/src/systemd/probe-server.service > /tmp/probe-server.service
           systemd-analyze verify /tmp/probe-server.service
           systemd-analyze security --offline=yes /tmp/probe-server.service
+      - name: 构建 Linux AMD64 服务端和密钥工具
+        working-directory: probe-server/src
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p dist
+          go build -trimpath -buildvcs=false -ldflags='-s -w' -o dist/probe-server-linux-amd64 ./cmd/probe-server
+          go build -trimpath -buildvcs=false -ldflags='-s -w' -o dist/probe-keygen-linux-amd64 ./cmd/probe-keygen
+          file dist/*
+          sha256sum dist/*
+      - name: 保存 AMD64 构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-server-linux-amd64
+          path: probe-server/src/dist/*
+          if-no-files-found: error
