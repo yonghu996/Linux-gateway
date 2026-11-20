@@ -11,6 +11,8 @@ if [[ -e "$TMP_DIR/EXECUTED" ]]; then
   echo '[失败] 发行版识别执行了测试命令。'
   exit 1
 fi
+# 正则内容需要按字面匹配 Shell source 语句，不进行变量展开。
+# shellcheck disable=SC2016
 if grep -R --include='*.sh' -nE 'source[[:space:]]+.*OS_RELEASE_FILE|\. ["\x27]?\$OS_RELEASE_FILE' "$ROOT_DIR"; then
   echo '[失败] 发现从外部路径 source os-release 的代码。'
   exit 1
