@@ -20,8 +20,10 @@ jobs:
     container:
       image: ${{ matrix.container }}
     steps:
-      - name: 拉取源码
+      - name: 拉取完整源码历史
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: 执行 Shell 与系统识别测试
         run: bash ci/validate.sh
 
@@ -29,8 +31,10 @@ jobs:
     name: ShellCheck 静态分析
     runs-on: ubuntu-latest
     steps:
-      - name: 拉取源码
+      - name: 拉取完整源码历史
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: 安装 ShellCheck
         run: |
           sudo apt-get update
@@ -40,3 +44,17 @@ jobs:
           find . -type f -name '*.sh' -print0 | while IFS= read -r -d '' file; do
             shellcheck "$file"
           done
+
+  secret_history_scan:
+    name: Gitleaks 完整历史凭据扫描
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取全部分支与标签历史
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+        # 完整克隆使 Gitleaks 能扫描仓库所有可达提交历史。
+      - name: 扫描工作区和 Git 历史
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
