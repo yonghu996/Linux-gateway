@@ -13,13 +13,13 @@
 
 ## 设计原则
 
-1. `install.sh` 是唯一交互式入口；子脚本只由入口调用，也可用于自动化诊断。
+1. `install.sh` 是唯一交互式入口；子脚本由入口调用。
 2. Shell 负责系统识别、能力检测、依赖计划、备份、部署、升级、回滚、诊断和卸载。
 3. Go 负责网关控制面、连接调度、协议适配和探测客户端等常驻服务。
 4. 默认只读检测。修复必须展示计划并取得明确确认。
 5. 禁止通用安装流程静默替换默认路由、清空防火墙、开启转发、修改 SSH 策略或更换内核。
 6. 节点账号、密码、密钥、证书和运行数据库不得提交到 Git。
-7. 当前版本是 Shell 框架，不包含可用于生产的 Gateway Core / Probe Client 二进制；菜单会明确提示尚未发布，不会伪装成已安装。
+7. 当前版本是 Shell 框架，不包含可用于生产的 Gateway Core / Probe Client 二进制；菜单会明确提示尚未发布。
 
 ## 快速开始
 
@@ -29,35 +29,12 @@ cd Linux-gateway
 sudo bash install.sh
 ```
 
-只读环境检测：
+只读环境检测：`sudo bash install.sh --check`。
 
-```bash
-sudo bash install.sh --check
-```
+生成诊断报告：`sudo bash install.sh --diagnose`。
 
-生成诊断报告：
+本地验证：`bash ci/validate.sh`。
 
-```bash
-sudo bash install.sh --diagnose
-```
+## 发布安全
 
-本地验证：
-
-```bash
-bash ci/validate.sh
-```
-
-## 目录
-
-- `install.sh`：唯一交互式菜单入口
-- `lib/`：通用函数、发行版识别、能力检测
-- `scripts/`：检测、修复计划、安装、服务、升级、回滚、卸载、诊断
-- `configs/`：不含真实凭据的配置模板
-- `systemd/`：服务单元模板
-- `tests/`：Shell 与系统识别测试
-- `.github/workflows/`：四发行版 CI 矩阵
-- `docs/`：架构、兼容、安全和运维约定
-
-## 安全
-
-默认不开放任何网络监听端口。管理 API 应绑定可信管理网段；探测服务使用 TLS、请求认证、限流和来源控制。不要在 issue、日志或 Git 中粘贴代理账号密码及 HMAC 密钥。
+Windows 发布脚本要求预先安装 Gitleaks；先暂存，再扫描工作区和完整 Git 历史。扫描工具缺失或扫描失败时拒绝推送。运行密钥、节点清单和证书必须保存在仓库外。

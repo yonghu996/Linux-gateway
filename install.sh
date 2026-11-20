@@ -2,20 +2,19 @@
 # Linux-gateway 唯一交互式入口。
 set -Eeuo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-# shellcheck source=lib/common.sh
+# shellcheck disable=SC1091
 source "$ROOT_DIR/lib/common.sh"
-# shellcheck source=lib/os-detect.sh
+# shellcheck disable=SC1091
 source "$ROOT_DIR/lib/os-detect.sh"
-# shellcheck source=lib/capabilities.sh
+# shellcheck disable=SC1091
 source "$ROOT_DIR/lib/capabilities.sh"
-# shellcheck source=lib/checks.sh
+# shellcheck disable=SC1091
 source "$ROOT_DIR/lib/checks.sh"
-
-显示菜单() {
+show_menu() {
   clear 2>/dev/null || true
   printf '\n==============================================\n'
   printf '       Linux 多出口网关管理中心\n'
-  printf '       版本：%s\n' "$(获取版本)"
+  printf '       版本：%s\n' "$(get_version)"
   printf '       系统：%s | 架构：%s\n' "$OS_NAME" "$CPU_ARCH"
   printf '==============================================\n'
   cat <<'菜单'
@@ -31,16 +30,16 @@ source "$ROOT_DIR/lib/checks.sh"
   0. 退出
 菜单
 }
-主程序() {
-  识别系统
-  识别架构
-  if [[ "${1:-}" == --check ]]; then 环境检测报告; return; fi
+main() {
+  detect_os
+  detect_arch
+  if [[ "${1:-}" == --check ]]; then print_environment_report; return; fi
   if [[ "${1:-}" == --diagnose ]]; then bash "$ROOT_DIR/scripts/diagnose.sh"; return; fi
-  检查平台支持 || return 1
-  需要_root || return 1
-  获取锁 || return 1
+  require_supported_platform || return 1
+  require_root || return 1
+  acquire_lock || return 1
   while true; do
-    显示菜单
+    show_menu
     read -r -p '请选择功能 [0-9]：' CHOICE || CHOICE=0
     case "$CHOICE" in
       1) bash "$ROOT_DIR/scripts/check-env.sh" ;;
@@ -53,9 +52,9 @@ source "$ROOT_DIR/lib/checks.sh"
       8) bash "$ROOT_DIR/scripts/rollback.sh" ;;
       9) bash "$ROOT_DIR/scripts/uninstall.sh" ;;
       0) break ;;
-      *) 日志警告 '无效选项。' ;;
+      *) log_warn '无效选项。' ;;
     esac
     read -r -p '按回车返回菜单...' _ || true
   done
 }
-主程序 "$@"
+main "$@"

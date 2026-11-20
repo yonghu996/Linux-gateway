@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  validate:
-    name: ${{ matrix.container }} / Shell
+  系统矩阵测试:
+    name: ${{ matrix.container }} / Bash
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -20,14 +20,23 @@ jobs:
     container:
       image: ${{ matrix.container }}
     steps:
-      - name: 安装最小测试依赖
-        run: |
-          if command -v apt-get >/dev/null 2>&1; then
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install -y --no-install-recommends bash coreutils findutils util-linux shellcheck git ca-certificates
-          fi
       - name: 拉取源码
         uses: actions/checkout@v4
-      - name: 执行验证
+      - name: 执行 Shell 与系统识别测试
         run: bash ci/validate.sh
+
+  ShellCheck静态检查:
+    name: ShellCheck 静态分析
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取源码
+        uses: actions/checkout@v4
+      - name: 安装 ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+      - name: 检查全部 Shell 脚本
+        run: |
+          find . -type f -name '*.sh' -print0 | while IFS= read -r -d '' file; do
+            shellcheck "$file"
+          done
