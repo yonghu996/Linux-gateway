@@ -22,3 +22,9 @@ coverage.out
 *.log
 *.tmp
 *.swp
+
+# Probe Server 本地解包、构建产物和 Go 工具链
+/probe-server/src/
+/probe-server/dist/
+/probe-server/go*/
+/probe-server/*.out

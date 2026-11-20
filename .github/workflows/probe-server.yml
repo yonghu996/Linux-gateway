@@ -1,0 +1,97 @@
+name: Probe Server Go CI
+
+on:
+  push:
+    paths:
+      - 'probe-server/**'
+      - '.github/workflows/probe-server.yml'
+  pull_request:
+    paths:
+      - 'probe-server/**'
+      - '.github/workflows/probe-server.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Go 1.27.4 测试与安全分析
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取源码
+        uses: actions/checkout@v4
+      - name: 解包固定版本源码
+        run: |
+          mkdir -p probe-server/src
+          sha256sum --check probe-server/source-v1.1.0-dev.tar.gz.sha256
+          tar -xzf probe-server/source-v1.1.0-dev.tar.gz --strip-components=1 -C probe-server/src
+      - name: 安装 Go 1.27.4
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.4'
+          cache: true
+          cache-dependency-path: probe-server/src/go.mod
+      - name: 运行完整测试
+        working-directory: probe-server/src
+        run: bash ci/validate.sh
+      - name: 安装并运行 govulncheck
+        working-directory: probe-server/src
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.10.0
+          "$(go env GOPATH)/bin/govulncheck" ./...
+      - name: 安装并运行 gosec
+        working-directory: probe-server/src
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
+          "$(go env GOPATH)/bin/gosec" -quiet ./...
+      - name: 安装并运行 ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          find probe-server/src -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do shellcheck "$f"; done
+      - name: 验证 systemd 单元
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y systemd
+          sed 's#ExecStart=/usr/local/bin/probe-server#ExecStart=/usr/bin/true#' probe-server/src/systemd/probe-server.service > /tmp/probe-server.service
+          systemd-analyze verify /tmp/probe-server.service
+          systemd-analyze security --offline=yes /tmp/probe-server.service
+
+  cross-build:
+    name: Linux ${{ matrix.arch }} 交叉构建
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: 拉取源码
+        uses: actions/checkout@v4
+      - name: 解包固定版本源码
+        run: |
+          mkdir -p probe-server/src
+          sha256sum --check probe-server/source-v1.1.0-dev.tar.gz.sha256
+          tar -xzf probe-server/source-v1.1.0-dev.tar.gz --strip-components=1 -C probe-server/src
+      - name: 安装 Go 1.27.4
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.4'
+      - name: 构建服务端与密钥工具
+        working-directory: probe-server/src
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p dist
+          go build -trimpath -buildvcs=false -ldflags='-s -w' -o dist/probe-server-linux-${GOARCH} ./cmd/probe-server
+          go build -trimpath -buildvcs=false -ldflags='-s -w' -o dist/probe-keygen-linux-${GOARCH} ./cmd/probe-keygen
+          file dist/*
+          sha256sum dist/*
+      - name: 保存构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-server-linux-${{ matrix.arch }}
+          path: probe-server/src/dist/*
+          if-no-files-found: error
