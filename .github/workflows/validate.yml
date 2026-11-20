@@ -27,7 +27,7 @@ jobs:
       image: ${{ matrix.container }}
     steps:
       - name: 拉取源码
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       - name: 执行 Shell 与系统识别测试
         run: bash ci/validate.sh
 
@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 拉取源码
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       - name: 安装 ShellCheck
         run: |
           sudo apt-get update
@@ -52,24 +52,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 拉取全部分支与标签历史
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: 安装并校验 Gitleaks
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          VERSION='8.30.1'
-          FILE="gitleaks_${VERSION}_linux_x64.tar.gz"
-          BASE="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}"
-          mkdir -p "$RUNNER_TEMP/gitleaks"
-          curl --fail --location --silent --show-error "$BASE/$FILE" -o "$RUNNER_TEMP/$FILE"
-          curl --fail --location --silent --show-error "$BASE/gitleaks_${VERSION}_checksums.txt" -o "$RUNNER_TEMP/checksums.txt"
-          grep -F "  $FILE" "$RUNNER_TEMP/checksums.txt" | (cd "$RUNNER_TEMP" && sha256sum --check --status)
-          tar -xzf "$RUNNER_TEMP/$FILE" -C "$RUNNER_TEMP/gitleaks"
-          test -x "$RUNNER_TEMP/gitleaks/gitleaks"
-          "$RUNNER_TEMP/gitleaks/gitleaks" version
-      - name: 扫描当前工作区文件
-        run: "$RUNNER_TEMP/gitleaks/gitleaks" dir --redact --exit-code=2 .
-      - name: 扫描全部可达分支与标签的 Git 历史
-        run: "$RUNNER_TEMP/gitleaks/gitleaks" git --redact --exit-code=2 --log-opts="--all" .
+      - name: 扫描工作区和全部可达提交历史
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
